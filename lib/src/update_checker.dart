@@ -5,15 +5,35 @@ import 'package:flutter/material.dart';
 
 import 'native_update_service.dart';
 
-/// Wrap your home screen's content with this to get Groww-style update prompts:
-/// Android uses Play Core's immediate (blocking) or flexible (background
-/// download + "restart to install" snackbar) flow depending on update
-/// priority; iOS shows a dialog linking out to the App Store, since Apple
-/// has no in-app self-update mechanism.
+/// Builds the iOS update dialog; [onUpdate] opens the App Store, [onLater] dismisses.
+typedef IosUpdateDialogBuilder = Widget Function(
+    BuildContext context,
+    UpdateCheckResult result,
+    VoidCallback onUpdate,
+    VoidCallback onLater,
+    );
+
+/// Builds the Android "restart to install" [SnackBar]; [onRestart] completes the update.
+typedef AndroidRestartSnackBarBuilder = SnackBar Function(
+    BuildContext context,
+    VoidCallback onRestart,
+    );
+
+/// Wraps your home screen to show Groww-style update prompts: Play Core's
+/// immediate/flexible flow on Android, an App Store dialog on iOS. Pass
+/// [iosUpdateDialogBuilder]/[androidRestartSnackBarBuilder] to replace the
+/// default UI, or leave unset to use the built-in dialog/snackbar.
 class UpdateChecker extends StatefulWidget {
-  const UpdateChecker({super.key, required this.child});
+  const UpdateChecker({
+    super.key,
+    required this.child,
+    this.iosUpdateDialogBuilder,
+    this.androidRestartSnackBarBuilder,
+  });
 
   final Widget child;
+  final IosUpdateDialogBuilder? iosUpdateDialogBuilder;
+  final AndroidRestartSnackBarBuilder? androidRestartSnackBarBuilder;
 
   @override
   State<UpdateChecker> createState() => _UpdateCheckerState();
@@ -75,41 +95,44 @@ class _UpdateCheckerState extends State<UpdateChecker> {
   }
 
   void _showRestartSnackBar() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        duration: const Duration(days: 1),
-        content: const Text('An update just downloaded.'),
-        action: SnackBarAction(
-          label: 'RESTART',
-          onPressed: () => _updateService.completeFlexibleUpdate(),
-        ),
-      ),
-    );
+    void onRestart() => _updateService.completeFlexibleUpdate();
+    final snackBar = widget.androidRestartSnackBarBuilder?.call(context, onRestart) ??
+        SnackBar(
+          duration: const Duration(days: 1),
+          content: const Text('An update just downloaded.'),
+          action: SnackBarAction(label: 'RESTART', onPressed: onRestart),
+        );
+    ScaffoldMessenger.of(context).showSnackBar(snackBar);
   }
 
   Future<void> _showIosUpdateDialog(UpdateCheckResult result) {
     return showDialog<void>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Update available'),
-        content: Text(
-          'A new version (${result.latestVersion}) is available. '
-          'You are on ${result.currentVersion}.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Later'),
+      builder: (dialogContext) {
+        void onUpdate() {
+          Navigator.of(dialogContext).pop();
+          _updateService.openStore();
+        }
+
+        void onLater() => Navigator.of(dialogContext).pop();
+
+        final builder = widget.iosUpdateDialogBuilder;
+        if (builder != null) {
+          return builder(dialogContext, result, onUpdate, onLater);
+        }
+
+        return AlertDialog(
+          title: const Text('Update available'),
+          content: Text(
+            'A new version (${result.latestVersion}) is available. '
+                'You are on ${result.currentVersion}.',
           ),
-          FilledButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              _updateService.openStore();
-            },
-            child: const Text('Update'),
-          ),
-        ],
-      ),
+          actions: [
+            TextButton(onPressed: onLater, child: const Text('Later')),
+            FilledButton(onPressed: onUpdate, child: const Text('Update')),
+          ],
+        );
+      },
     );
   }
 
