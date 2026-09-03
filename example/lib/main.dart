@@ -10,9 +10,7 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
-      home: UpdateChecker(child: HomePage()),
-    );
+    return const MaterialApp(home: UpdateChecker(child: HomePage()));
   }
 }
 
@@ -30,17 +28,18 @@ class _HomePageState extends State<HomePage> {
   Future<void> _checkForUpdate() async {
     try {
       final result = await _updateService.checkForUpdate();
-      setState(() {
-        _lastResult = 'updateAvailable: ${result.updateAvailable}\n'
-            'immediateAllowed: ${result.immediateAllowed}\n'
-            'flexibleAllowed: ${result.flexibleAllowed}\n'
-            'currentVersion: ${result.currentVersion}\n'
-            'latestVersion: ${result.latestVersion}';
-      });
+      setState(() => _lastResult = _describe(result));
     } catch (e) {
       setState(() => _lastResult = 'checkForUpdate failed: $e');
     }
   }
+
+  String _describe(UpdateCheckResult result) =>
+      'updateAvailable: ${result.updateAvailable}\n'
+      'immediateAllowed: ${result.immediateAllowed}\n'
+      'flexibleAllowed: ${result.flexibleAllowed}\n'
+      'currentVersion: ${result.currentVersion}\n'
+      'latestVersion: ${result.latestVersion}';
 
   @override
   Widget build(BuildContext context) {

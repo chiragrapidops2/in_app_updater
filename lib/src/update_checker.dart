@@ -5,28 +5,20 @@ import 'package:flutter/material.dart';
 
 import 'native_update_service.dart';
 
-/// Builds the iOS update dialog; [onUpdate] opens the App Store, [onLater] dismisses.
-typedef IosUpdateDialogBuilder = Widget Function(
-    BuildContext context,
-    UpdateCheckResult result,
-    VoidCallback onUpdate,
-    VoidCallback onLater,
-    );
-
-/// Builds the Android update dialog; [onUpdate] starts the Play Core update
-/// flow (immediate or flexible, whichever is allowed), [onLater] dismisses.
-typedef AndroidUpdateDialogBuilder = Widget Function(
-    BuildContext context,
-    UpdateCheckResult result,
-    VoidCallback onUpdate,
-    VoidCallback onLater,
+/// Builds an update dialog; [onUpdate] starts the platform update flow
+/// (Play Core immediate/flexible on Android, the App Store on iOS),
+/// [onLater] dismisses the dialog.
+typedef UpdateDialogBuilder =
+    Widget Function(
+      BuildContext context,
+      UpdateCheckResult result,
+      VoidCallback onUpdate,
+      VoidCallback onLater,
     );
 
 /// Builds the Android "restart to install" [SnackBar]; [onRestart] completes the update.
-typedef AndroidRestartSnackBarBuilder = SnackBar Function(
-    BuildContext context,
-    VoidCallback onRestart,
-    );
+typedef AndroidRestartSnackBarBuilder =
+    SnackBar Function(BuildContext context, VoidCallback onRestart);
 
 /// Wraps your home screen to show Groww-style update prompts: an update
 /// dialog first, then Play Core's immediate/flexible flow on Android or the
@@ -44,8 +36,8 @@ class UpdateChecker extends StatefulWidget {
   });
 
   final Widget child;
-  final IosUpdateDialogBuilder? iosUpdateDialogBuilder;
-  final AndroidUpdateDialogBuilder? androidUpdateDialogBuilder;
+  final UpdateDialogBuilder? iosUpdateDialogBuilder;
+  final UpdateDialogBuilder? androidUpdateDialogBuilder;
   final AndroidRestartSnackBarBuilder? androidRestartSnackBarBuilder;
 
   @override
@@ -85,8 +77,12 @@ class _UpdateCheckerState extends State<UpdateChecker> {
     }
   }
 
+  // ── Android: Play Core immediate/flexible update flow ────────────────────
+
   Future<void> _showAndroidUpdateDialog(UpdateCheckResult result) {
-    if (!result.immediateAllowed && !result.flexibleAllowed) return Future.value();
+    if (!result.immediateAllowed && !result.flexibleAllowed) {
+      return Future.value();
+    }
 
     return showDialog<void>(
       context: context,
@@ -105,7 +101,9 @@ class _UpdateCheckerState extends State<UpdateChecker> {
 
         return AlertDialog(
           title: const Text('Update available'),
-          content: const Text('A new version of the app is available on the Play Store.'),
+          content: const Text(
+            'A new version of the app is available on the Play Store.',
+          ),
           actions: [
             TextButton(onPressed: onLater, child: const Text('Later')),
             FilledButton(onPressed: onUpdate, child: const Text('Update')),
@@ -130,7 +128,9 @@ class _UpdateCheckerState extends State<UpdateChecker> {
 
   void _listenForFlexibleUpdate() {
     _installStateSub = _updateService.installStateStream().listen((event) {
-      final status = _updateService.statusFromString(event['status'] as String?);
+      final status = _updateService.statusFromString(
+        event['status'] as String?,
+      );
       if (status == InstallStatus.downloaded && mounted) {
         _showRestartSnackBar();
       }
@@ -139,7 +139,8 @@ class _UpdateCheckerState extends State<UpdateChecker> {
 
   void _showRestartSnackBar() {
     void onRestart() => _updateService.completeFlexibleUpdate();
-    final snackBar = widget.androidRestartSnackBarBuilder?.call(context, onRestart) ??
+    final snackBar =
+        widget.androidRestartSnackBarBuilder?.call(context, onRestart) ??
         SnackBar(
           duration: const Duration(days: 1),
           content: const Text('An update just downloaded.'),
@@ -147,6 +148,8 @@ class _UpdateCheckerState extends State<UpdateChecker> {
         );
     ScaffoldMessenger.of(context).showSnackBar(snackBar);
   }
+
+  // ── iOS: App Store lookup + StoreKit sheet ────────────────────────────────
 
   Future<void> _showIosUpdateDialog(UpdateCheckResult result) {
     return showDialog<void>(
@@ -168,7 +171,7 @@ class _UpdateCheckerState extends State<UpdateChecker> {
           title: const Text('Update available'),
           content: Text(
             'A new version (${result.latestVersion}) is available. '
-                'You are on ${result.currentVersion}.',
+            'You are on ${result.currentVersion}.',
           ),
           actions: [
             TextButton(onPressed: onLater, child: const Text('Later')),
