@@ -13,26 +13,39 @@ typedef IosUpdateDialogBuilder = Widget Function(
     VoidCallback onLater,
     );
 
+/// Builds the Android update dialog; [onUpdate] starts the Play Core update
+/// flow (immediate or flexible, whichever is allowed), [onLater] dismisses.
+typedef AndroidUpdateDialogBuilder = Widget Function(
+    BuildContext context,
+    UpdateCheckResult result,
+    VoidCallback onUpdate,
+    VoidCallback onLater,
+    );
+
 /// Builds the Android "restart to install" [SnackBar]; [onRestart] completes the update.
 typedef AndroidRestartSnackBarBuilder = SnackBar Function(
     BuildContext context,
     VoidCallback onRestart,
     );
 
-/// Wraps your home screen to show Groww-style update prompts: Play Core's
-/// immediate/flexible flow on Android, an App Store dialog on iOS. Pass
-/// [iosUpdateDialogBuilder]/[androidRestartSnackBarBuilder] to replace the
-/// default UI, or leave unset to use the built-in dialog/snackbar.
+/// Wraps your home screen to show Groww-style update prompts: an update
+/// dialog first, then Play Core's immediate/flexible flow on Android or the
+/// App Store sheet on iOS once the user taps Update. Pass
+/// [androidUpdateDialogBuilder]/[iosUpdateDialogBuilder]/
+/// [androidRestartSnackBarBuilder] to replace the default UI, or leave unset
+/// to use the built-in dialog/snackbar.
 class UpdateChecker extends StatefulWidget {
   const UpdateChecker({
     super.key,
     required this.child,
     this.iosUpdateDialogBuilder,
+    this.androidUpdateDialogBuilder,
     this.androidRestartSnackBarBuilder,
   });
 
   final Widget child;
   final IosUpdateDialogBuilder? iosUpdateDialogBuilder;
+  final AndroidUpdateDialogBuilder? androidUpdateDialogBuilder;
   final AndroidRestartSnackBarBuilder? androidRestartSnackBarBuilder;
 
   @override
@@ -66,13 +79,43 @@ class _UpdateCheckerState extends State<UpdateChecker> {
     if (!result.updateAvailable || !mounted) return;
 
     if (Platform.isAndroid) {
-      await _handleAndroidUpdate(result);
+      await _showAndroidUpdateDialog(result);
     } else if (Platform.isIOS) {
       await _showIosUpdateDialog(result);
     }
   }
 
-  Future<void> _handleAndroidUpdate(UpdateCheckResult result) async {
+  Future<void> _showAndroidUpdateDialog(UpdateCheckResult result) {
+    if (!result.immediateAllowed && !result.flexibleAllowed) return Future.value();
+
+    return showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        void onUpdate() {
+          Navigator.of(dialogContext).pop();
+          _startAndroidUpdateFlow(result);
+        }
+
+        void onLater() => Navigator.of(dialogContext).pop();
+
+        final builder = widget.androidUpdateDialogBuilder;
+        if (builder != null) {
+          return builder(dialogContext, result, onUpdate, onLater);
+        }
+
+        return AlertDialog(
+          title: const Text('Update available'),
+          content: const Text('A new version of the app is available on the Play Store.'),
+          actions: [
+            TextButton(onPressed: onLater, child: const Text('Later')),
+            FilledButton(onPressed: onUpdate, child: const Text('Update')),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _startAndroidUpdateFlow(UpdateCheckResult result) async {
     if (result.immediateAllowed) {
       // High-priority release: block the app until it's updated.
       await _updateService.startImmediateUpdate();
