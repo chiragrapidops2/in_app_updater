@@ -87,12 +87,21 @@ class _UpdateCheckerState extends State<UpdateChecker> {
     return showDialog<void>(
       context: context,
       builder: (dialogContext) {
+        var dismissed = false;
+        void dismiss() {
+          if (dismissed) return;
+          dismissed = true;
+          if (Navigator.of(dialogContext).canPop()) {
+            Navigator.of(dialogContext).pop();
+          }
+        }
+
         void onUpdate() {
-          Navigator.of(dialogContext).pop();
+          dismiss();
           _startAndroidUpdateFlow(result);
         }
 
-        void onLater() => Navigator.of(dialogContext).pop();
+        void onLater() => dismiss();
 
         final builder = widget.androidUpdateDialogBuilder;
         if (builder != null) {
@@ -161,12 +170,21 @@ class _UpdateCheckerState extends State<UpdateChecker> {
     return showDialog<void>(
       context: context,
       builder: (dialogContext) {
+        var dismissed = false;
+        void dismiss() {
+          if (dismissed) return;
+          dismissed = true;
+          if (Navigator.of(dialogContext).canPop()) {
+            Navigator.of(dialogContext).pop();
+          }
+        }
+
         void onUpdate() {
-          Navigator.of(dialogContext).pop();
+          dismiss();
           unawaited(_openStore());
         }
 
-        void onLater() => Navigator.of(dialogContext).pop();
+        void onLater() => dismiss();
 
         final builder = widget.iosUpdateDialogBuilder;
         if (builder != null) {
