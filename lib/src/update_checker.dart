@@ -114,15 +114,21 @@ class _UpdateCheckerState extends State<UpdateChecker> {
   }
 
   Future<void> _startAndroidUpdateFlow(UpdateCheckResult result) async {
-    if (result.immediateAllowed) {
-      // High-priority release: block the app until it's updated.
-      await _updateService.startImmediateUpdate();
-      return;
-    }
-    if (result.flexibleAllowed && !_flexibleUpdateInFlight) {
-      _flexibleUpdateInFlight = true;
-      _listenForFlexibleUpdate();
-      await _updateService.startFlexibleUpdate();
+    try {
+      if (result.immediateAllowed) {
+        // High-priority release: block the app until it's updated.
+        await _updateService.startImmediateUpdate();
+        return;
+      }
+      if (result.flexibleAllowed && !_flexibleUpdateInFlight) {
+        _flexibleUpdateInFlight = true;
+        _listenForFlexibleUpdate();
+        await _updateService.startFlexibleUpdate();
+      }
+    } catch (_) {
+      // e.g. the user backed out of the Play Core confirmation dialog, or
+      // Play Services is unavailable. Reset so a later check can retry.
+      _flexibleUpdateInFlight = false;
     }
   }
 
@@ -157,7 +163,7 @@ class _UpdateCheckerState extends State<UpdateChecker> {
       builder: (dialogContext) {
         void onUpdate() {
           Navigator.of(dialogContext).pop();
-          _updateService.openStore();
+          unawaited(_openStore());
         }
 
         void onLater() => Navigator.of(dialogContext).pop();
@@ -180,6 +186,14 @@ class _UpdateCheckerState extends State<UpdateChecker> {
         );
       },
     );
+  }
+
+  Future<void> _openStore() async {
+    try {
+      await _updateService.openStore();
+    } catch (_) {
+      // Nothing more we can do if StoreKit/UIApplication can't open the listing.
+    }
   }
 
   @override
