@@ -273,9 +273,17 @@ UpdateChecker(
 
 ## Full manual-flow example
 
-If you don't want the automatic on-launch dialog, call
-`NativeUpdateService` directly — e.g. from a settings screen "Check for
-updates" button:
+If you don't want the automatic on-launch dialog — e.g. you want your own
+dialog widget, your own state management, or to trigger the check from
+somewhere other than app launch (a "Check for updates" button in Settings) —
+call `NativeUpdateService` directly instead of using `UpdateChecker`.
+
+The example app's `ManualUpdateFlowPage`
+([`example/lib/manual_update_flow_page.dart`](example/lib/manual_update_flow_page.dart))
+is a runnable version of this pattern with a custom dialog, correct
+immediate/flexible branching, and the install-state listener wired up — open
+the example app and tap **"Open manual-flow example"** to see it. Short
+version:
 
 ```dart
 import 'dart:io';
@@ -353,6 +361,13 @@ Future<void> checkAndUpdate() async {
 
 ## Example app
 
-See [`example/`](example) for a runnable app exercising `NativeUpdateService`
-directly via a button, in addition to the automatic `UpdateChecker` flow
-wrapped around its home screen.
+See [`example/`](example) for a runnable app demonstrating both patterns:
+
+- `HomePage` ([`main.dart`](example/lib/main.dart)) — the automatic
+  `UpdateChecker` flow wrapped around the home screen, plus a button that
+  calls `checkForUpdate()` directly and prints the raw result.
+- `ManualUpdateFlowPage`
+  ([`manual_update_flow_page.dart`](example/lib/manual_update_flow_page.dart))
+  — the fully manual pattern (custom dialog, Android immediate/flexible
+  branching, install-state listener, restart snackbar) described in
+  [Full manual-flow example](#full-manual-flow-example) above.
